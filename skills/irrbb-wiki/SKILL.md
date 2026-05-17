@@ -7,10 +7,13 @@ description: >
   letters, stress testing for IRRBB, Pillar 2 / SOT, ALM risk measurement, or any regulatory
   or methodological question in the IRRBB domain. Also triggers when an agent needs to understand
   internal risk methodology, compare regulatory approaches across jurisdictions, or check whether
-  a claim about IRRBB is consistent with current regulatory guidance. Do NOT use for credit risk,
-  operational risk, market risk trading book, or liquidity risk unless the question specifically
-  intersects with IRRBB (e.g., basis risk between funding and lending rates).
-version: "1.0.0"
+  a claim about IRRBB is consistent with current regulatory guidance. Additionally triggers for
+  agentic search operations on the wiki — scanning registered sources for new IRRBB publications
+  (polling), discovering new sources by topic (discovery), or finding the primary source for a
+  specific IRRBB-related event (targeted). Do NOT use for credit risk, operational risk, market
+  risk trading book, or liquidity risk unless the question specifically intersects with IRRBB
+  (e.g., basis risk between funding and lending rates).
+version: "1.1.0"
 access: read-only
 ---
 
@@ -28,12 +31,12 @@ and contradiction flags are already done. Your job is to navigate, retrieve, and
 
 ## Available Scripts
 
-See language-specific guides for project setup:
-- [Bootstrap Directory Structure](./scripts/bootstrap.py) - Creates the full directory structure, schema files (AGENTS.md + CLAUDE.md),
-and initial wiki files (index.md, log.md, overview.md). Run once at project start.
-- [Wiki Linter](./scripts/lint_wiki.py) - Lint tool for the IRRBB Risk Knowledge Wiki. Checks wiki health across multiple dimensions, run after any ingest or update.
-- [MCP Server](./scripts/mcp_server.py) - Provides API access to the wiki for agents without filesystem access. Start the server and connect with the provided tools.
-- [Research Tools](./scripts/research.py) - Research pipeline for the AI in Banking Knowledge Wiki. A modular tool that fetches web content, summarizes it with Claude, generates source frontmatter, and optionally drafts wiki page updates.
+- [Bootstrap Directory Structure](./scripts/bootstrap.py) — Creates the full directory structure, schema files (AGENTS.md + CLAUDE.md), initial wiki files (index.md, log.md, overview.md), the `inbox/` approval queue, and the `tools/search/` agentic search package. Run once at project start.
+- [Wiki Linter](./scripts/lint_wiki.py) — Lint tool for the IRRBB Risk Knowledge Wiki. Checks wiki health across multiple dimensions, run after any ingest or update.
+- [MCP Server](./scripts/mcp_server.py) — Provides API access to the wiki for agents without filesystem access. Start the server and connect with the provided tools.
+- [Research Pipeline](./scripts/research.py) — Single-source ingest: fetches web content, summarizes it with Claude, generates source frontmatter, and optionally drafts wiki page updates.
+- [Agentic Search CLI](./scripts/search/cli.py) — Three-workflow scanner (polling, discovery, targeted) that queues source recommendations to `inbox/pending/` for human approval. Feeds approved items into the `research.py` pipeline. See [references/agentic-search.md](./references/agentic-search.md) for the full design and CLI reference.
+- [Source Registry](./scripts/source_registry.yaml) — Starter registry of authoritative IRRBB sources (BCBS, OSFI, EBA, OCC, Fed, Risk.net). Edited by hand; the agent does NOT discover sources autonomously.
 
 ## How to Use the Wiki
 
@@ -231,6 +234,52 @@ Available tools:
 - `wiki_read(page_name)` — Read a specific page by name
 - `wiki_list(page_type?, tag?)` — List pages with optional filters
 - `wiki_ingest(source_path)` — Ingest a source (requires explicit permission)
+
+## Agentic Search (Source Discovery & Monitoring)
+
+The wiki ships with an agentic search package at `tools/search/` that scans for
+new IRRBB sources and queues them for human approval before ingest. Three workflows
+share the same approval queue:
+
+| Workflow | When to use it |
+|----------|----------------|
+| **polling** | "Check what's new from BCBS / OSFI / EBA / OCC / Fed / Risk.net" — scheduled scan of registered sources |
+| **discovery** | "Find sources about [topic]" without a specific URL — bounded web search against `discovery_topics` |
+| **targeted** | "Find the primary source for [headline / event]" — on-demand research for a single announcement |
+
+Nothing is auto-ingested. All items land in `inbox/pending/` and require approval
+before being handed to `research.py`.
+
+### Quick commands
+
+```bash
+python tools/search/cli.py poll                 # run polling against due sources
+python tools/search/cli.py discover             # run discovery topics
+python tools/search/cli.py target --description "BCBS d579 IRRBB consultation"
+python tools/search/cli.py queue                # list pending items
+python tools/search/cli.py review <item_id>     # show evaluation + content
+python tools/search/cli.py approve <item_id>
+python tools/search/cli.py reject <item_id> --reason "..."
+python tools/search/cli.py approve-all --min-score 9
+python tools/search/cli.py ingest-approved      # hand off to research.py pipeline
+```
+
+### When to read the reference
+
+For any of the following, load [references/agentic-search.md](./references/agentic-search.md):
+- Adding or modifying entries in `tools/source_registry.yaml`
+- Implementing or debugging any module under `tools/search/`
+- Understanding the two-pass evaluator output format
+- Operator workflow (when to poll, approve, ingest, lint)
+- Troubleshooting fetch failures or `consecutive_failures` warnings
+
+### What this feature does NOT do
+
+- Does not touch `raw/` directly — only writes to `inbox/`
+- Does not fetch `internal` or `confidential` sources — those still come in via
+  manual `research.py ingest --file`
+- Does not discover sources autonomously — the registry is hand-maintained
+- Does not modify wiki pages — that remains the ingest pipeline's job after approval
 
 ## Domain Scope
 

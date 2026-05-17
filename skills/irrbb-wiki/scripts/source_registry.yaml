@@ -1,0 +1,113 @@
+# Starter source registry for the IRRBB wiki agentic search feature.
+#
+# This is the single source of truth for what to monitor. Edit by hand —
+# the agent does NOT discover sources autonomously.
+#
+# See references/agentic-search.md in the irrbb-wiki skill for full schema docs.
+
+sources:
+  - id: bcbs-publications
+    name: "BCBS Publications (Basel Committee)"
+    fetch_strategy: rss
+    rss_url: "https://www.bis.org/list/bcbs/index.rss"
+    cadence: weekly
+    topic_filter: [irrbb, interest-rate-risk, banking-book, basel, d368, eve, nii]
+    bank_tags: []
+    source_quality: authoritative
+    enabled: true
+
+  - id: osfi-publications
+    name: "OSFI Guidelines and Advisories"
+    fetch_strategy: rss
+    rss_url: "https://www.osfi-bsif.gc.ca/en/data-forms-publications/rss-feeds"
+    cadence: weekly
+    topic_filter: [irrbb, b-12, interest-rate, alm, asset-liability, banking-book]
+    bank_tags: []
+    source_quality: authoritative
+    enabled: true
+
+  - id: eba-publications
+    name: "EBA IRRBB Guidelines and Updates"
+    fetch_strategy: rss
+    rss_url: "https://www.eba.europa.eu/rss.xml"
+    cadence: weekly
+    topic_filter: [irrbb, interest-rate-risk, banking-book, sot, supervisory-outlier]
+    bank_tags: []
+    source_quality: authoritative
+    enabled: true
+
+  - id: fed-sr-letters
+    name: "Federal Reserve SR Letters"
+    fetch_strategy: requests
+    url: "https://www.federalreserve.gov/supervisionreg/srletters/srletters.htm"
+    cadence: weekly
+    topic_filter: [interest-rate-risk, irr, alm, banking-book, eve, nii]
+    bank_tags: []
+    source_quality: authoritative
+    enabled: true
+
+  - id: occ-bulletins
+    name: "OCC Bulletins"
+    fetch_strategy: rss
+    rss_url: "https://www.occ.gov/news-issuances/bulletins/index-bulletins.rss"
+    cadence: weekly
+    topic_filter: [interest-rate-risk, irr, irrbb, alm, banking-book]
+    bank_tags: []
+    source_quality: authoritative
+    enabled: true
+
+  - id: risk-net-irrbb
+    name: "Risk.net IRRBB Coverage"
+    fetch_strategy: rss
+    rss_url: "https://www.risk.net/feed/topic/interest-rate-risk-banking-book"
+    cadence: daily
+    topic_filter: [irrbb, interest-rate, alm, hedging, behavioral-models, nmd]
+    bank_tags: []
+    source_quality: media
+    enabled: true
+
+  # Phase 2 / Phase 5 — enable when ready
+  - id: ssrn-irrbb
+    name: "SSRN — Interest Rate Risk Working Papers"
+    fetch_strategy: rss
+    rss_url: "https://papers.ssrn.com/sol3/JELJOUR_Results.cfm?form_name=journalBrowse&journal_id=irrbb"
+    cadence: weekly
+    topic_filter: [irrbb, term-structure, behavioral, nmd, prepayment, optionality]
+    bank_tags: []
+    source_quality: reference
+    enabled: false
+
+  - id: ecb-banking-supervision
+    name: "ECB Banking Supervision Publications"
+    fetch_strategy: chromium
+    url: "https://www.bankingsupervision.europa.eu/press/publications/html/index.en.html"
+    cadence: weekly
+    topic_filter: [irrbb, interest-rate-risk, srep, ilaap, banking-book]
+    bank_tags: []
+    source_quality: authoritative
+    enabled: false
+
+discovery_topics:
+  - topic: "Canadian bank IRRBB disclosures EVE NII sensitivity"
+    bank_tags: [rbc, td, scotiabank, bmo, cibc, nbc]
+    cadence: quarterly
+  - topic: "supervisory outlier test SOT 15% threshold breach"
+    bank_tags: []
+    cadence: monthly
+  - topic: "behavioral models non-maturity deposits NMD assumptions"
+    bank_tags: []
+    cadence: monthly
+  - topic: "OSFI B-12 amendments interest rate risk banking book"
+    bank_tags: []
+    cadence: weekly
+  - topic: "BCBS d368 implementation Basel IRRBB standards"
+    bank_tags: []
+    cadence: monthly
+
+global_settings:
+  user_agent: "IRRBB-Wiki-Research/1.0 (personal research)"
+  request_timeout_seconds: 30
+  request_delay_seconds: 2
+  chromium_headless: true
+  max_pages_per_run: 50
+  approval_queue_retention_days: 14

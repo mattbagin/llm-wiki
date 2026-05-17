@@ -47,6 +47,11 @@ DIRECTORIES = [
     "wiki/open-questions",
     # Tools
     "tools",
+    "tools/search",
+    # Approval queue for the agentic search feature (git-ignored)
+    "inbox/pending",
+    "inbox/approved",
+    "inbox/rejected",
 ]
 
 # ─────────────────────────────────────────────────────────────
@@ -356,6 +361,22 @@ venv/
 
 # Search index (regenerated)
 .qmd/
+
+# Agentic search approval queue — local-only, not committed
+inbox/
+"""
+
+
+def initial_state_json() -> str:
+    """Empty queue state. Written to inbox/state.json on bootstrap."""
+    return """\
+{
+  "schema_version": 1,
+  "last_updated": null,
+  "sources": {},
+  "seen_urls": [],
+  "content_hashes": {}
+}
 """
 
 
@@ -403,26 +424,26 @@ def bootstrap(target: Path) -> None:
     ]
     for rel_path, purpose in raw_leaves:
         readme_path = target / rel_path / "README.md"
-        readme_path.write_text(gitkeep_readme(purpose))
+        readme_path.write_text(gitkeep_readme(purpose), encoding="utf-8")
 
     # Schema files
-    (target / "AGENTS.md").write_text(SCHEMA_CONTENT)
-    (target / "CLAUDE.md").write_text(SCHEMA_CONTENT)
+    (target / "AGENTS.md").write_text(SCHEMA_CONTENT, encoding="utf-8")
+    (target / "CLAUDE.md").write_text(SCHEMA_CONTENT, encoding="utf-8")
     print("  Created AGENTS.md")
     print("  Created CLAUDE.md")
 
     # Wiki files
-    (target / "wiki" / "index.md").write_text(index_content())
+    (target / "wiki" / "index.md").write_text(index_content(), encoding="utf-8")
     print("  Created wiki/index.md")
 
-    (target / "wiki" / "log.md").write_text(log_content())
+    (target / "wiki" / "log.md").write_text(log_content(), encoding="utf-8")
     print("  Created wiki/log.md")
 
-    (target / "wiki" / "overview.md").write_text(overview_content())
+    (target / "wiki" / "overview.md").write_text(overview_content(), encoding="utf-8")
     print("  Created wiki/overview.md")
 
     # .gitignore
-    (target / ".gitignore").write_text(gitignore_content())
+    (target / ".gitignore").write_text(gitignore_content(), encoding="utf-8")
     print("  Created .gitignore")
 
     # Copy tool scripts if they exist alongside this bootstrap script
@@ -430,19 +451,49 @@ def bootstrap(target: Path) -> None:
     tools_to_copy = [
         ("lint_wiki.py", "tools/lint_wiki.py"),
         ("mcp_server.py", "tools/mcp_server.py"),
+        ("research.py", "tools/research.py"),
+        ("source_registry.yaml", "tools/source_registry.yaml"),
     ]
     for src_name, dest_rel in tools_to_copy:
         src = script_dir / src_name
         if src.exists():
             dest = target / dest_rel
-            dest.write_text(src.read_text())
+            dest.write_text(src.read_text(encoding="utf-8"), encoding="utf-8")
             print(f"  Created {dest_rel}")
+
+    # Copy the agentic search package (tools/search/) if present
+    search_src = script_dir / "search"
+    if search_src.is_dir():
+        search_dst = target / "tools" / "search"
+        search_dst.mkdir(parents=True, exist_ok=True)
+        for py_file in search_src.glob("*.py"):
+            (search_dst / py_file.name).write_text(
+                py_file.read_text(encoding="utf-8"), encoding="utf-8"
+            )
+            print(f"  Created tools/search/{py_file.name}")
+
+    # Initial inbox state
+    (target / "inbox" / "state.json").write_text(initial_state_json(), encoding="utf-8")
+    print("  Created inbox/state.json")
+    for inbox_sub in ("pending", "approved", "rejected"):
+        (target / "inbox" / inbox_sub / ".gitkeep").write_text("", encoding="utf-8")
 
     # Copy SKILL.md if it exists alongside this bootstrap script
     skill_src = script_dir / "SKILL.md"
     if skill_src.exists():
-        (target / "SKILL.md").write_text(skill_src.read_text())
+        (target / "SKILL.md").write_text(skill_src.read_text(encoding="utf-8"), encoding="utf-8")
         print("  Created SKILL.md")
+
+    # Copy reference docs (e.g. agentic-search.md) into the wiki's tools/ dir
+    refs_src = script_dir.parent / "references"
+    if refs_src.is_dir():
+        refs_dst = target / "tools" / "references"
+        refs_dst.mkdir(parents=True, exist_ok=True)
+        for ref_file in refs_src.glob("*.md"):
+            (refs_dst / ref_file.name).write_text(
+                ref_file.read_text(encoding="utf-8"), encoding="utf-8"
+            )
+            print(f"  Created tools/references/{ref_file.name}")
 
     # Summary
     dir_count = len(DIRECTORIES)
@@ -454,9 +505,12 @@ def bootstrap(target: Path) -> None:
     print(f"  4. Open the repo in your LLM agent and say: 'Ingest raw/regulatory/bcbs/bcbs-368.md'")
     print(f"  5. Open in Obsidian to browse the wiki as it grows (optional)")
     print(f"\nTools:")
-    print(f"  python tools/lint_wiki.py           # Check wiki health")
-    print(f"  python tools/mcp_server.py          # Start MCP server (read-only)")
-    print(f"  python tools/mcp_server.py --allow-ingest  # MCP with write access")
+    print(f"  python tools/lint_wiki.py                    # Check wiki health")
+    print(f"  python tools/mcp_server.py                   # Start MCP server (read-only)")
+    print(f"  python tools/mcp_server.py --allow-ingest    # MCP with write access")
+    print(f"  python tools/research.py ingest --url <url>  # Single-source ingest")
+    print(f"  python tools/search/cli.py poll              # Scan registered sources")
+    print(f"  python tools/search/cli.py queue             # List pending approval items")
 
 
 def main() -> None:

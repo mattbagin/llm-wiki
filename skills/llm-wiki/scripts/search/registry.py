@@ -29,7 +29,7 @@ class SourceConfig:
     rss_url: str | None = None
     url: str | None = None
     topic_filter: list[str] = field(default_factory=list)
-    bank_tags: list[str] = field(default_factory=list)
+    entity_tags: list[str] = field(default_factory=list)
 
     def __post_init__(self) -> None:
         if self.fetch_strategy == "rss" and not self.rss_url:
@@ -44,12 +44,12 @@ class SourceConfig:
 class DiscoveryTopic:
     topic: str
     cadence: Cadence
-    bank_tags: list[str] = field(default_factory=list)
+    entity_tags: list[str] = field(default_factory=list)
 
 
 @dataclass
 class GlobalSettings:
-    user_agent: str = "IRRBB-Wiki-Research/1.0"
+    user_agent: str = "LLM-Wiki-Research/1.0"
     request_timeout_seconds: int = 30
     request_delay_seconds: int = 2
     chromium_headless: bool = True

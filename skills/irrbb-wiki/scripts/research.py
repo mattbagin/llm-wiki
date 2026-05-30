@@ -379,10 +379,16 @@ def generate_source_file(
     fetch_result: FetchResult,
     metadata: SourceMetadata,
     wiki_root: Path,
+    classification: str = "public",
+    verbatim: bool = False,
 ) -> Path:
     """Create a frontmatter-tagged source file in raw/.
 
     LangGraph node: takes FetchResult + SourceMetadata, writes file, returns path.
+
+    `verbatim=True` marks the source as protected: its text may only be reproduced
+    as exact quotes in the wiki, never paraphrased (for internal policies, board
+    mandates, contracts). See SKILL.md / AGENTS.md "Verbatim / protected sources".
     """
     # Determine directory based on source type and bank tags
     if metadata.source_type == "regulatory-guidance":
@@ -427,6 +433,8 @@ source_quality: {metadata.source_quality}
 issuer: "{metadata.issuer}"
 date_published: {metadata.date_published}
 date_ingested: {TODAY}
+classification: {classification}
+verbatim: {str(verbatim).lower()}
 bank_tags: {bank_tags_str}
 topic_tags: {topic_tags_str}
 url: "{metadata.url}"
@@ -460,16 +468,36 @@ def draft_updates(
     metadata: SourceMetadata,
     wiki_root: Path,
     model: str = DEFAULT_MODEL,
+    verbatim: bool = False,
 ) -> str:
     """Use Claude to draft wiki page updates based on the new source.
 
     LangGraph node: takes FetchResult + SourceMetadata + wiki context, returns markdown.
     Does NOT write to wiki — returns draft for human review.
+
+    When `verbatim=True`, the source is protected: the draft must quote it exactly
+    rather than paraphrase it, and put analysis on separate pages.
     """
     logger.info("Drafting wiki page updates...")
 
     # Read relevant existing wiki pages for context
     existing_context = _gather_wiki_context(metadata, wiki_root)
+
+    if verbatim:
+        verbatim_rule = dedent("""\
+
+            IMPORTANT — this source is flagged `verbatim: true` (protected; e.g. an internal
+            policy or board mandate). It is authoritative AS WRITTEN. In your draft you MUST:
+            - Reproduce any of its text ONLY as exact quotes, inside a callout:
+              `> [!quote] Verbatim — protected source, do not edit`
+            - NOT paraphrase, summarize-as-fact, condense, reorder, or reword the protected text.
+            - Put any comparison/analysis (e.g. policy vs. OSFI B-12 / BCBS 368) on a SEPARATE
+              comparisons/ or open-questions/ page, tagging your own words `[internal]` / `[inference]`
+              and quoting the protected text verbatim where referenced.
+            - A short navigation summary is allowed only under a clearly-labelled "Summary [inference]"
+              heading OUTSIDE any verbatim quote block.""")
+    else:
+        verbatim_rule = ""
 
     prompt = dedent(f"""\
         You are a wiki maintainer for an AI in Banking knowledge base.
@@ -480,6 +508,8 @@ def draft_updates(
         - Banks discussed: {', '.join(metadata.bank_tags) or 'none specified'}
         - Topics: {', '.join(metadata.topic_tags)}
         - Summary: {metadata.summary}
+        - Protected (verbatim): {str(verbatim).lower()}
+        {verbatim_rule}
 
         <source_content>
         {fetch_result.content[:40000]}
@@ -659,6 +689,8 @@ def run_file_ingest_pipeline(
     with_commentary: bool = False,
     commentary_focus: Optional[str] = None,
     model: str = DEFAULT_MODEL,
+    classification: str = "public",
+    verbatim: bool = False,
 ) -> ResearchResult:
     """Run the ingest pipeline from a local file (skips fetch step).
 
@@ -695,7 +727,10 @@ def run_file_ingest_pipeline(
         metadata.url = url_ref
 
     # Step 3: Generate source file
-    source_path = generate_source_file(fetch_result, metadata, wiki_root)
+    source_path = generate_source_file(
+        fetch_result, metadata, wiki_root,
+        classification=classification, verbatim=verbatim,
+    )
 
     result = ResearchResult(
         fetch=fetch_result,
@@ -705,7 +740,7 @@ def run_file_ingest_pipeline(
 
     # Step 4: Draft wiki updates
     if with_updates:
-        result.wiki_updates = draft_updates(fetch_result, metadata, wiki_root, model=model)
+        result.wiki_updates = draft_updates(fetch_result, metadata, wiki_root, model=model, verbatim=verbatim)
 
     # Step 5: Commentary
     if with_commentary:
@@ -725,6 +760,8 @@ def run_ingest_pipeline(
     with_commentary: bool = False,
     commentary_focus: Optional[str] = None,
     model: str = DEFAULT_MODEL,
+    classification: str = "public",
+    verbatim: bool = False,
 ) -> ResearchResult:
     """Run the full ingest pipeline: fetch → summarize → file → draft updates.
 
@@ -741,7 +778,10 @@ def run_ingest_pipeline(
     metadata = summarize(fetch_result, bank_hint=bank_hint, model=model)
 
     # Step 3: Generate source file
-    source_path = generate_source_file(fetch_result, metadata, wiki_root)
+    source_path = generate_source_file(
+        fetch_result, metadata, wiki_root,
+        classification=classification, verbatim=verbatim,
+    )
 
     result = ResearchResult(
         fetch=fetch_result,
@@ -751,7 +791,7 @@ def run_ingest_pipeline(
 
     # Step 4: Draft wiki updates
     if with_updates:
-        result.wiki_updates = draft_updates(fetch_result, metadata, wiki_root, model=model)
+        result.wiki_updates = draft_updates(fetch_result, metadata, wiki_root, model=model, verbatim=verbatim)
 
     # Step 5: Commentary
     if with_commentary:
@@ -943,6 +983,10 @@ def find_wiki_root() -> Path:
 
 
 def main() -> None:
+    try:
+        sys.stdout.reconfigure(encoding="utf-8")
+    except (AttributeError, ValueError):
+        pass
     parser = argparse.ArgumentParser(
         description="Research pipeline for the AI in Banking Knowledge Wiki"
     )
@@ -968,6 +1012,15 @@ def main() -> None:
     ingest_parser.add_argument("--url-ref", dest="url_ref",
                                help="Original URL for attribution when using --file (recorded in frontmatter)")
     ingest_parser.add_argument("--bank", help="Bank slug hint (e.g., rbc, jpmorgan)")
+    ingest_parser.add_argument(
+        "--classification", choices=["public", "internal", "confidential"], default="public",
+        help="Source classification (default: public)",
+    )
+    ingest_parser.add_argument(
+        "--verbatim", action="store_true",
+        help="Protected source: reproduce only as exact quotes, never paraphrase "
+             "(for internal policies, board mandates, contracts, legal text)",
+    )
     ingest_parser.add_argument(
         "--commentary", action="store_true", help="Also generate analytical commentary"
     )
@@ -1015,6 +1068,8 @@ def main() -> None:
                 with_commentary=args.commentary,
                 commentary_focus=args.commentary_focus,
                 model=args.model,
+                classification=args.classification,
+                verbatim=args.verbatim,
             )
         elif args.url:
             result = run_ingest_pipeline(
@@ -1025,6 +1080,8 @@ def main() -> None:
                 with_commentary=args.commentary,
                 commentary_focus=args.commentary_focus,
                 model=args.model,
+                classification=args.classification,
+                verbatim=args.verbatim,
             )
         else:
             logger.error("Provide either a URL or --file path")

@@ -79,6 +79,10 @@ markdown pages that synthesize knowledge from curated source documents.
    `index.md`. If it doesn't, create a stub or use plain text with `[stub]`.
 6. **Respect classification.** Never synthesize `confidential` source content into wiki pages.
    Mark claims derived from `internal` sources with `[internal]`.
+7. **Verbatim sources are never reworded.** A source flagged `verbatim: true` (e.g. an internal
+   policy, board mandate, or contract) is authoritative as written. Reproduce its text only as
+   exact quotes — never paraphrase, summarize-as-fact, condense, or "clarify" it. You ARE
+   encouraged to compare it against regulatory guidance (see "Verbatim / protected sources").
 
 ## Directory Layout
 
@@ -111,6 +115,10 @@ Sources in `raw/` are organized by provenance:
 | `internal` | Synthesize but tag derived claims with `[internal]` |
 | `confidential` | Reference by title only — do NOT synthesize content into wiki pages |
 
+`classification` and `verbatim` (below) are independent: `classification` governs *whether/how*
+a source may be synthesized or shared; `verbatim` governs *whether its wording may be changed*.
+An internal policy is commonly `classification: internal` **and** `verbatim: true`.
+
 ## Source Frontmatter
 
 Every source in `raw/` should have YAML frontmatter:
@@ -126,10 +134,39 @@ status: current               # current | superseded | draft
 supersedes: ""
 superseded_by: ""
 classification: public        # public | internal | confidential
+verbatim: false               # true = reproduce only as exact quotes; never reword (see below)
 tags: [irrbb, eve, nii]
 summary: ""
 ---
 ```
+
+## Verbatim / Protected Sources
+
+Some documents are authoritative **as written** — internal policies, board-approved risk mandates,
+contracts, legal text. A reworded policy can misstate what the document actually requires, which is
+exactly the failure a second-line risk function must avoid. For any source with `verbatim: true`:
+
+**Do:**
+- Reproduce its text **only as exact quotes**, inside a callout that marks it protected:
+  ```markdown
+  > [!quote] Verbatim — internal policy, do not edit
+  > <exact text, unchanged>
+  ```
+- **Compare it against regulatory guidance** — this is encouraged and is core to the wiki's value
+  (e.g. internal NMD policy vs. OSFI B-12 / BCBS 368). File the analysis on a separate
+  `comparisons/`, `concepts/`, or `open-questions/` page, quoting the policy verbatim where you
+  reference it and clearly separating your analysis with `[internal]` / `[inference]` tags.
+- If you reproduce the document as its own wiki page (a *verbatim mirror*), keep the quoted policy
+  text in the protected callout untouched; only surrounding frontmatter, headings, Source Log, and
+  Cross-References may be added or updated.
+
+**Never:**
+- Paraphrase, summarize-as-fact, condense, reorder, modernize, or "improve" the protected text.
+- Merge protected text with your own wording so the two become indistinguishable.
+- Edit the text inside a `> [!quote] Verbatim` block on any later pass.
+
+A short navigation summary is fine **only** if clearly labelled as your summary (e.g. under a
+"Summary [inference]" heading) and sitting outside the protected quote block.
 
 ## Wiki Page Conventions
 
@@ -184,8 +221,11 @@ When sources disagree, use a callout:
 
 1. Read the source fully
 2. Discuss key takeaways with the human
-3. Add YAML frontmatter to the source if missing
-4. Create/update wiki pages — summaries, concepts, entities, models
+3. Add YAML frontmatter to the source if missing (set `verbatim:` — ask if it's a policy/mandate/contract)
+4. Create/update wiki pages — summaries, concepts, entities, models.
+   **If `verbatim: true`:** do NOT paraphrase the source into wiki prose. Reproduce it as exact
+   quotes in a `> [!quote] Verbatim — do not edit` block, and put any regulatory comparison/analysis
+   on a separate page (see "Verbatim / protected sources").
 5. Flag contradictions with callouts
 6. Create stubs for new concepts not yet covered
 7. Update `wiki/index.md` and append to `wiki/log.md`
@@ -196,6 +236,7 @@ When sources disagree, use a callout:
 - [ ] All new claims attributed to specific source?
 - [ ] Contradictions with existing pages flagged?
 - [ ] Internal-sourced claims tagged `[internal]`?
+- [ ] Verbatim-protected text quoted exactly (not reworded)?
 - [ ] All wikilinks resolve?
 - [ ] Index updated?
 - [ ] Log entry appended?
@@ -466,11 +507,12 @@ def bootstrap(target: Path) -> None:
     if search_src.is_dir():
         search_dst = target / "tools" / "search"
         search_dst.mkdir(parents=True, exist_ok=True)
-        for py_file in search_src.glob("*.py"):
-            (search_dst / py_file.name).write_text(
-                py_file.read_text(encoding="utf-8"), encoding="utf-8"
-            )
-            print(f"  Created tools/search/{py_file.name}")
+        for pattern in ("*.py", "requirements.txt"):
+            for src_file in search_src.glob(pattern):
+                (search_dst / src_file.name).write_text(
+                    src_file.read_text(encoding="utf-8"), encoding="utf-8"
+                )
+                print(f"  Created tools/search/{src_file.name}")
 
     # Initial inbox state
     (target / "inbox" / "state.json").write_text(initial_state_json(), encoding="utf-8")

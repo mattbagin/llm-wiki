@@ -13,7 +13,7 @@ description: >
   specific IRRBB-related event (targeted). Do NOT use for credit risk, operational risk, market
   risk trading book, or liquidity risk unless the question specifically intersects with IRRBB
   (e.g., basis risk between funding and lending rates).
-version: "1.1.0"
+version: "1.2.0"
 access: read-only
 ---
 
@@ -31,12 +31,36 @@ and contradiction flags are already done. Your job is to navigate, retrieve, and
 
 ## Available Scripts
 
+> **Paths:** in this skill the tooling lives under `scripts/`. `bootstrap.py` copies
+> it into a new wiki repo under `tools/` — so commands you run inside a bootstrapped
+> wiki use `tools/...`, while the source you edit when extending the skill is under
+> `scripts/...`. The `tools/references/` docs in a bootstrapped wiki are copies of this
+> skill's `references/`.
+
 - [Bootstrap Directory Structure](./scripts/bootstrap.py) — Creates the full directory structure, schema files (AGENTS.md + CLAUDE.md), initial wiki files (index.md, log.md, overview.md), the `inbox/` approval queue, and the `tools/search/` agentic search package. Run once at project start.
 - [Wiki Linter](./scripts/lint_wiki.py) — Lint tool for the IRRBB Risk Knowledge Wiki. Checks wiki health across multiple dimensions, run after any ingest or update.
 - [MCP Server](./scripts/mcp_server.py) — Provides API access to the wiki for agents without filesystem access. Start the server and connect with the provided tools.
 - [Research Pipeline](./scripts/research.py) — Single-source ingest: fetches web content, summarizes it with Claude, generates source frontmatter, and optionally drafts wiki page updates.
 - [Agentic Search CLI](./scripts/search/cli.py) — Three-workflow scanner (polling, discovery, targeted) that queues source recommendations to `inbox/pending/` for human approval. Feeds approved items into the `research.py` pipeline. See [references/agentic-search.md](./references/agentic-search.md) for the full design and CLI reference.
 - [Source Registry](./scripts/source_registry.yaml) — Starter registry of authoritative IRRBB sources (BCBS, OSFI, EBA, OCC, Fed, Risk.net). Edited by hand; the agent does NOT discover sources autonomously.
+
+## Setup & Dependencies
+
+Read-only wiki navigation needs nothing beyond filesystem access. The pipelines have
+incremental dependencies:
+
+| Capability | Install | Env vars |
+|------------|---------|----------|
+| Ingest pipeline (`research.py`) | `pip install anthropic httpx` | `ANTHROPIC_API_KEY` |
+| Agentic search | `pip install -r tools/search/requirements.txt` | `ANTHROPIC_API_KEY`; optional `SEARCH_PROVIDER` (`ddg` default / `brave` / `serper` / `tavily`) + `SEARCH_API_KEY` |
+| MCP server | `pip install mcp` | — |
+| Browser fetch (Tier 3) | `pip install playwright && playwright install chromium` | — |
+| Lint | none (stdlib only) | — |
+
+No-LLM search commands (`queue`, `review`, `approve`, `reject`) need no API key.
+`poll --dry-run` / `discover --dry-run` exercise fetch + evaluation without writing to
+the queue. Models default to Haiku (Pass 1) and Sonnet (Pass 2); override with
+`IRRBB_PASS1_MODEL` / `IRRBB_PASS2_MODEL`.
 
 ## How to Use the Wiki
 
@@ -109,6 +133,19 @@ Wiki pages contain content derived from sources with different classification le
 | `public` | Freely use, quote, and reference in any context | — |
 | `internal` | Use in internal-facing responses; always note `[internal]` | Share externally or with unauthorized users |
 | `confidential` | Acknowledge existence by title only | Reveal content, parameters, or specifics |
+
+### Verbatim / Protected Sources
+
+Independent of classification, a source may be flagged `verbatim: true` (internal policies,
+board-approved mandates, contracts, legal text). Its text is authoritative **as written**:
+
+- Reproduce it **only as exact quotes**, inside a `> [!quote] Verbatim — do not edit` callout —
+  never paraphrase, condense, reorder, or reword it (a reworded policy misstates the policy).
+- **Comparing it against regulatory guidance is encouraged** (e.g. internal NMD policy vs.
+  OSFI B-12 / BCBS 368) — do that on a separate `comparisons/` or `open-questions/` page, quoting
+  the protected text verbatim and tagging your own analysis `[internal]` / `[inference]`.
+- `classification` and `verbatim` are independent — an internal policy is typically both
+  `classification: internal` **and** `verbatim: true`.
 
 Check the `provenance` field in each page's frontmatter:
 - `provenance: public` — safe for any context
@@ -198,11 +235,14 @@ explicitly requests an ingest, follow this workflow:
    date_ingested: YYYY-MM-DD
    status: current|superseded|draft
    classification: public|internal|confidential
+   verbatim: false   # true for policies/mandates/contracts — quote only, never reword
    tags: []
    summary: ""
    ---
    ```
-4. Create or update wiki pages — summaries, concepts, entities, models
+4. Create or update wiki pages — summaries, concepts, entities, models.
+   For a `verbatim: true` source, reproduce its text only as exact quotes in a
+   `> [!quote] Verbatim` block; put regulatory comparison/analysis on a separate page.
 5. Flag contradictions with `> [!warning] Contradiction` callouts
 6. Create stub pages for new concepts not yet covered
 7. Validate all `[[wikilinks]]` resolve to existing pages
@@ -215,6 +255,7 @@ Before completing an ingest, verify:
 - [ ] All new claims attributed to a specific source
 - [ ] Contradictions with existing pages flagged
 - [ ] `[internal]` tag on claims from internal sources
+- [ ] Verbatim-protected text quoted exactly (not reworded)
 - [ ] All `[[wikilinks]]` resolve (no broken links)
 - [ ] `wiki/index.md` updated
 - [ ] `wiki/log.md` entry appended

@@ -1,0 +1,55 @@
+# Source registry for the agentic search feature (domain-agnostic).
+#
+# This is the single source of truth for what to monitor. Edit by hand —
+# the agent does NOT discover sources autonomously. Replace the placeholders
+# below with feeds/pages relevant to YOUR wiki's domain, then set enabled: true.
+#
+# See tools/references/agentic-search.md for the full schema and provider docs.
+
+sources:
+  - id: example-rss
+    name: "Example RSS Feed — replace me"
+    fetch_strategy: rss              # rss | requests | chromium
+    rss_url: "https://example.com/feed.xml"
+    cadence: weekly                  # daily | weekly | monthly | quarterly
+    topic_filter: []                 # keywords; first-pass filter before any LLM call
+    entity_tags: []
+    source_quality: media            # authoritative | primary | media | reference
+    enabled: false
+
+  - id: example-listing-page
+    name: "Example Listing Page (no RSS) — replace me"
+    fetch_strategy: requests
+    url: "https://example.com/news"
+    cadence: weekly
+    topic_filter: []
+    entity_tags: []
+    source_quality: primary
+    enabled: false
+
+  - id: example-js-site
+    name: "Example JS-rendered site — replace me"
+    fetch_strategy: chromium         # needs Playwright; else flagged for manual collection
+    url: "https://example.com/app/list"
+    cadence: weekly
+    topic_filter: []
+    entity_tags: []
+    source_quality: authoritative
+    enabled: false
+
+discovery_topics:
+  - topic: "Replace with a topic your wiki should track"
+    entity_tags: []
+    cadence: monthly
+
+global_settings:
+  user_agent: "LLM-Wiki-Research/1.0 (personal research)"
+  request_timeout_seconds: 30
+  request_delay_seconds: 2
+  chromium_headless: true
+  max_pages_per_run: 50
+  approval_queue_retention_days: 14
+  # Web search for discovery/targeted. Provider: ddg (no key) | brave | serper | tavily.
+  # Can also be set via SEARCH_PROVIDER env; API providers read SEARCH_API_KEY.
+  search_provider: ddg
+  max_results_per_query: 10

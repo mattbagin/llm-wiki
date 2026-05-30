@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Lint tool for the IRRBB Risk Knowledge Wiki.
+Lint tool for an LLM Knowledge Wiki.
 
 Checks wiki health across multiple dimensions:
   1. Broken wikilinks — [[links]] that don't resolve to existing pages
@@ -460,7 +460,7 @@ def format_issue(issue: LintIssue, use_color: bool = True) -> str:
 def print_report(report: LintReport, use_color: bool = True) -> None:
     """Print the full lint report to stdout."""
     print("\n" + "=" * 60)
-    print("  IRRBB Wiki Lint Report")
+    print("  LLM Wiki Lint Report")
     print("=" * 60)
 
     # Stats
@@ -550,7 +550,7 @@ def main() -> None:
     except (AttributeError, ValueError):
         pass
     parser = argparse.ArgumentParser(
-        description="Lint the IRRBB Risk Knowledge Wiki"
+        description="Lint an LLM Knowledge Wiki"
     )
     parser.add_argument(
         "--wiki-dir",

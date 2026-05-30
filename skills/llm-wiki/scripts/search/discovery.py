@@ -31,14 +31,13 @@ def formulate_queries(topic: DiscoveryTopic) -> list[str]:
     The expansion is constrained to keep cost bounded; we do not let the agent
     iterate on queries within a single run. Falls back to the raw topic string.
     """
-    bank_hint = f" Banks of interest: {', '.join(topic.bank_tags)}." if topic.bank_tags else ""
+    entity_hint = f" Entities of interest: {', '.join(topic.entity_tags)}." if topic.entity_tags else ""
     prompt = (
-        "You are planning web searches to find authoritative sources for an IRRBB "
-        "(Interest Rate Risk in the Banking Book) knowledge wiki.\n\n"
-        f'Topic: "{topic.topic}".{bank_hint}\n\n'
+        "You are planning web searches to find authoritative sources for a knowledge wiki.\n\n"
+        f'Topic: "{topic.topic}".{entity_hint}\n\n'
         f"Write up to {MAX_QUERIES_PER_TOPIC} focused search queries that would surface "
-        "primary sources (regulator publications, bank disclosures) and high-quality coverage. "
-        "Prefer precise regulatory/technical phrasing.\n\n"
+        "primary sources and high-quality coverage on this topic. Prefer precise, "
+        "specific phrasing over broad terms.\n\n"
         'Respond with ONLY a JSON array of strings, e.g. ["query one", "query two"].'
     )
     try:
@@ -94,7 +93,7 @@ def run_discovery(
             name=f"Discovery: {topic.topic}",
             source_quality="reference",
             topic_filter=topic.topic.split(),
-            bank_tags=topic.bank_tags,
+            entity_tags=topic.entity_tags,
         )
 
         for query in queries:
@@ -119,7 +118,7 @@ def run_discovery(
                     status = pipeline.process_item(
                         item, source, wiki_root, queue, state,
                         delay=settings.request_delay_seconds, dry_run=dry_run,
-                        extra_bank_tags=topic.bank_tags,
+                        extra_entity_tags=topic.entity_tags,
                     )
                 except Exception as e:  # noqa: BLE001
                     logger.warning("processing failed for %s: %s", r.url, e)

@@ -91,7 +91,7 @@ def run_polling(
                 status = pipeline.process_item(
                     item, source, wiki_root, queue, state,
                     delay=settings.request_delay_seconds, dry_run=dry_run,
-                    extra_bank_tags=source.bank_tags,
+                    extra_entity_tags=source.entity_tags,
                 )
             except Exception as e:  # noqa: BLE001
                 logger.warning("processing failed for %s: %s", item.url, e)

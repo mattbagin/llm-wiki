@@ -52,7 +52,7 @@ class Evaluation:
     recommended_action: Action
     affected_wiki_pages: list[str] = field(default_factory=list)
     contradictions_with_wiki: list[dict] = field(default_factory=list)
-    bank_tags: list[str] = field(default_factory=list)
+    entity_tags: list[str] = field(default_factory=list)
     topic_tags: list[str] = field(default_factory=list)
     agent_notes: str = ""
 
@@ -84,21 +84,20 @@ def classify_item(item: "FeedItem", source: "SourceConfig") -> Classification:
     failure, falls back to a conservative `skip` so a flaky call never queues noise.
     """
     prompt = dedent(f"""\
-        You are a fast relevance classifier for an IRRBB (Interest Rate Risk in the
-        Banking Book) knowledge wiki. Score how relevant ONE candidate source is,
-        from its title and summary alone.
+        You are a fast relevance classifier for a knowledge wiki. Score how relevant
+        ONE candidate source is to this wiki's topics, from its title and summary alone.
 
         Source feed: {source.name} (quality: {source.source_quality})
-        Topic focus for this feed: {', '.join(source.topic_filter) or 'general IRRBB'}
+        Topics this wiki tracks (from the feed's filter): {', '.join(source.topic_filter) or 'general — infer from the source feed name'}
 
         Candidate:
         Title: {item.title}
         Summary: {item.summary[:600]}
 
-        Score 0-10 for IRRBB relevance and ingest-worthiness:
-        - 8-10: clearly IRRBB, likely primary/authoritative — recommend
+        Score 0-10 for relevance to the wiki's topics and ingest-worthiness:
+        - 8-10: clearly on-topic, likely a primary/authoritative source — recommend
         - 4-7: plausibly relevant, needs a closer look — consider
-        - 0-3: off-topic (credit/AML/market-trading/etc.) — skip
+        - 0-3: off-topic — skip
 
         Respond with ONLY JSON, no prose:
         {{"score": <int 0-10>, "reason": "<one short sentence>"}}
@@ -125,9 +124,10 @@ def evaluate_item(
     the inbox/pending YAML schema in references/agentic-search.md.
     """
     prompt = dedent(f"""\
-        You are the senior evaluator for an IRRBB knowledge wiki. Decide whether a
-        candidate source should be queued for human approval and ingest. You do NOT
-        write to the wiki — you only produce a recommendation record.
+        You are the senior evaluator for a knowledge wiki. Decide whether a candidate
+        source should be queued for human approval and ingest. You do NOT write to the
+        wiki — you only produce a recommendation record. Judge relevance against the
+        wiki's existing topics shown in the context below.
 
         <candidate>
         Title: {item.title}
@@ -146,11 +146,11 @@ def evaluate_item(
         Assess:
         1. Novelty vs. what the wiki already covers: novel | partial-duplicate | duplicate
         2. If duplicate/partial, which existing wiki page or inbox item it duplicates
-        3. Which wiki pages this would affect or create (use paths like wiki/regulations/x.md)
+        3. Which wiki pages this would affect or create (use paths like wiki/concepts/x.md)
         4. Any contradictions with existing wiki claims
         5. Recommended action: ingest | ingest-with-commentary | skip
            (use ingest-with-commentary when the source warrants analytical narrative,
-            e.g. a consultation that revisits an in-force standard)
+            e.g. it revisits or challenges something the wiki already states)
 
         Respond with ONLY JSON, no prose:
         {{
@@ -161,7 +161,7 @@ def evaluate_item(
           "recommended_action": "ingest|ingest-with-commentary|skip",
           "affected_wiki_pages": ["wiki/..."],
           "contradictions_with_wiki": [{{"page": "wiki/...", "claim": "...", "conflict": "..."}}],
-          "bank_tags": ["..."],
+          "entity_tags": ["..."],
           "topic_tags": ["..."],
           "agent_notes": "<2-4 sentences for the human reviewer>"
         }}
@@ -187,7 +187,7 @@ def evaluate_item(
         recommended_action=data.get("recommended_action", "ingest"),
         affected_wiki_pages=list(data.get("affected_wiki_pages", []) or []),
         contradictions_with_wiki=list(data.get("contradictions_with_wiki", []) or []),
-        bank_tags=list(data.get("bank_tags", []) or []),
+        entity_tags=list(data.get("entity_tags", []) or []),
         topic_tags=list(data.get("topic_tags", []) or []),
         agent_notes=str(data.get("agent_notes", "")),
     )

@@ -1,6 +1,6 @@
 # Agentic Search — Reference
 
-A scheduled / on-demand pipeline that scans for new IRRBB sources, evaluates them
+A scheduled / on-demand pipeline that scans for new sources, evaluates them
 against the current wiki, and queues recommendations for human approval. Nothing
 is auto-ingested. The feature complements (does not replace) `research.py`.
 
@@ -48,14 +48,14 @@ discover sources autonomously; the registry is the single source of truth.
 ### Source entry schema
 
 ```yaml
-- id: bcbs-publications            # unique, kebab-case
-  name: "BCBS Publications"
+- id: example-source             # unique, kebab-case
+  name: "Example Source"
   fetch_strategy: rss              # rss | requests | chromium
   rss_url: "..."                   # required if fetch_strategy=rss
   url: "..."                       # required if fetch_strategy=requests|chromium
   cadence: weekly                  # daily | weekly | monthly | quarterly
-  topic_filter: [irrbb, eve, ...]  # regex pre-pass before any LLM call
-  bank_tags: [rbc]                 # optional; tagged onto items from this source
+  topic_filter: [topic-a, topic-b]  # regex pre-pass before any LLM call
+  entity_tags: []                  # optional; tagged onto items from this source
   source_quality: authoritative    # authoritative | primary | media | reference
   enabled: true
 ```
@@ -64,9 +64,9 @@ discover sources autonomously; the registry is the single source of truth.
 
 ```yaml
 discovery_topics:
-  - topic: "supervisory outlier test 15% threshold"
+  - topic: "a topic your wiki should track"
     cadence: monthly
-    bank_tags: []
+    entity_tags: []
 ```
 
 The LLM expands each topic into up to 3 web search queries (bounded budget).
@@ -75,7 +75,7 @@ The LLM expands each topic into up to 3 web search queries (bounded budget).
 
 ```yaml
 global_settings:
-  user_agent: "IRRBB-Wiki-Research/1.0"
+  user_agent: "LLM-Wiki-Research/1.0"
   request_timeout_seconds: 30
   request_delay_seconds: 2          # per-domain politeness
   max_pages_per_run: 50             # hard cap per workflow run
@@ -86,9 +86,9 @@ global_settings:
 
 | Tier | Strategy | Use when |
 |------|----------|----------|
-| 1 | RSS (`feedparser`) | Preferred; BCBS, OSFI, EBA, OCC, Risk.net, SSRN all have feeds |
+| 1 | RSS (`feedparser`) | Preferred; many high-signal sources publish feeds |
 | 2 | Requests (`httpx`) | No RSS, or lazy full-content fetch after RSS metadata pass |
-| 3 | Chromium (`playwright`) | JS-rendered listing pages (e.g. ECB), 403/Cloudflare fallback |
+| 3 | Chromium (`playwright`) | JS-rendered listing pages (e.g. a JS-heavy portal), 403/Cloudflare fallback |
 
 Tier 3 is lazy-imported. If Playwright is not installed, `fetch_source` returns
 a `needs_manual_collection=True` stub item so the human can ingest manually via
@@ -111,7 +111,7 @@ Returns `Evaluation` with:
 - `recommended_action`: ingest | ingest-with-commentary | skip
 - `affected_wiki_pages`: list of page paths
 - `contradictions_with_wiki`: list of `{page, claim, conflict}` records
-- `bank_tags`, `topic_tags`, `agent_notes`
+- `entity_tags`, `topic_tags`, `agent_notes`
 
 ### Wiki context assembly
 
@@ -130,28 +130,28 @@ demonstrably fails.
 item:
   title: "..."
   url: "..."
-  source_id: bcbs-publications
+  source_id: example-source
   fetched_at: 2026-04-15T08:30:00Z
-  content_path: "inbox/pending/20260415-bcbs-d579.md"
+  content_path: "inbox/pending/20260415-example.md"
 
 evaluation:
   pass_1_score: 10
-  pass_1_reason: "Direct BCBS publication; IRRBB-related"
+  pass_1_reason: "Primary source directly on a tracked topic"
   pass_2_status: recommend
   pass_2_confidence: high
   novelty: novel
   duplicate_of: null
   recommended_action: ingest-with-commentary
   affected_wiki_pages:
-    - "wiki/regulations/bcbs-d368.md"
-    - "wiki/regulations/bcbs-d579.md"
+    - "wiki/concepts/example-concept.md"
+    - "wiki/topics/example-topic.md"
   contradictions_with_wiki:
-    - page: "wiki/concepts/supervisory-outlier-test.md"
-      claim: "SOT threshold of 15% of Tier 1 capital"
-      conflict: "d579 proposes tiered thresholds"
-  bank_tags: []
-  topic_tags: [bcbs, sot, standardized-framework]
-  agent_notes: "First substantive revision to d368 since 2016..."
+    - page: "wiki/concepts/example-concept.md"
+      claim: "existing claim the wiki states"
+      conflict: "how the new source contradicts it"
+  entity_tags: []
+  topic_tags: [topic-a, topic-b]
+  agent_notes: "Why this matters and what to do with it..."
 ```
 
 ## Approval queue
@@ -203,7 +203,7 @@ When `seen_urls` exceeds ~5,000 entries, migrate to SQLite.
 # Polling / discovery / targeted
 python tools/search/cli.py poll
 python tools/search/cli.py discover
-python tools/search/cli.py target --description "Deutsche Bank EVE breach" --bank deutsche-bank
+python tools/search/cli.py target --description "a specific announcement" --bank deutsche-bank
 
 # Queue management
 python tools/search/cli.py queue                              # list pending
@@ -228,7 +228,7 @@ The handoff (`cmd_ingest_approved` in cli.py) loops approved items and calls
 run_file_ingest_pipeline(
     file_path=item.content_path,
     wiki_root=wiki_root,
-    bank_hint=item.bank_tags[0] if item.bank_tags else None,
+    bank_hint=item.entity_tags[0] if item.entity_tags else None,
     url_ref=item.url,
     with_updates=True,
     with_commentary=(item.recommended_action == "ingest-with-commentary"),
@@ -313,7 +313,7 @@ limitation to work around.
 The Pass 1 / Pass 2 / query-formulation prompts live inline in `evaluator.py`,
 `discovery.py`, and `targeted.py`. Pass 1 uses `llm.PASS1_MODEL` (Haiku); Pass 2
 and query formulation use `llm.PASS2_MODEL` (Sonnet). Override with
-`IRRBB_PASS1_MODEL` / `IRRBB_PASS2_MODEL`.
+`WIKI_PASS1_MODEL` / `WIKI_PASS2_MODEL`.
 
 ## Setup
 

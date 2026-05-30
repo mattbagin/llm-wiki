@@ -1,7 +1,7 @@
 """Targeted workflow: on-demand research for a specific event.
 
-Use case: user sees a headline (e.g., "Deutsche Bank Q1 EVE breach"), wants
-the agent to find primary source + secondary coverage and queue them grouped.
+Use case: user sees a headline or announcement, wants the agent to find the
+primary source + secondary coverage and queue them grouped.
 
 Flow: LLM formulates queries from the free-text description → web search →
 classify each result as likely-primary vs. secondary coverage (domain heuristic)
@@ -20,21 +20,22 @@ from .registry import Registry
 
 logger = logging.getLogger("search.targeted")
 
-# Domains we treat as likely PRIMARY sources (regulators + official bank/IR sites).
+# Domain fragments we treat as likely PRIMARY sources (official/authoritative).
+# Generic defaults — extend per wiki domain (add specific issuer/org domains).
 _PRIMARY_DOMAIN_HINTS = (
-    "bis.org", "osfi-bsif.gc.ca", "federalreserve.gov", "occ.gov", "eba.europa.eu",
-    "bankingsupervision.europa.eu", "sec.gov", ".gov", "investor", "ir.",
+    ".gov", ".edu", ".int", ".org", "official", "docs.", "investor", "ir.", "press.",
 )
 
 
-def _formulate_queries(description: str, bank_hint: str | None, max_queries: int = 3) -> list[str]:
-    bank = f" The event concerns: {bank_hint}." if bank_hint else ""
+def _formulate_queries(description: str, entity_hint: str | None, max_queries: int = 3) -> list[str]:
+    entity = f" The event concerns: {entity_hint}." if entity_hint else ""
     prompt = (
         "You are finding the primary source documents (and notable coverage) for a single "
-        "IRRBB-related event for a knowledge wiki.\n\n"
-        f'Event description: "{description}".{bank}\n\n'
+        "event or announcement, for a knowledge wiki.\n\n"
+        f'Event description: "{description}".{entity}\n\n'
         f"Write up to {max_queries} precise web search queries that would surface the actual "
-        "primary source (regulator publication, bank disclosure/filing) and any key secondary coverage.\n\n"
+        "primary source (the originating organization's publication/filing) and any key "
+        "secondary coverage.\n\n"
         'Respond with ONLY a JSON array of strings.'
     )
     try:
@@ -56,7 +57,7 @@ def run_targeted(
     registry: Registry,
     wiki_root: Path,
     inbox_root: Path,
-    bank_hint: str | None = None,
+    entity_hint: str | None = None,
     max_results: int = 5,
     dry_run: bool = False,
 ) -> dict:
@@ -70,7 +71,7 @@ def run_targeted(
     settings = registry.global_settings
     provider = getattr(settings, "search_provider", None)
 
-    queries = _formulate_queries(description, bank_hint, max_queries=3)
+    queries = _formulate_queries(description, entity_hint, max_queries=3)
 
     # Gather and dedup candidates across all queries.
     candidates: list[websearch.SearchResult] = []
@@ -95,7 +96,7 @@ def run_targeted(
         name=f"Targeted: {description[:60]}",
         source_quality="primary",
         topic_filter=description.split(),
-        bank_tags=[bank_hint] if bank_hint else [],
+        entity_tags=[entity_hint] if entity_hint else [],
     )
 
     queued: list[str] = []
@@ -111,7 +112,7 @@ def run_targeted(
             status = pipeline.process_item(
                 item, source, wiki_root, queue, state,
                 delay=settings.request_delay_seconds, dry_run=dry_run,
-                extra_bank_tags=source.bank_tags,
+                extra_entity_tags=source.entity_tags,
             )
         except Exception as e:  # noqa: BLE001
             logger.warning("processing failed for %s: %s", r.url, e)

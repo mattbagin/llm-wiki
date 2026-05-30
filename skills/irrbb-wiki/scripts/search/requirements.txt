@@ -1,0 +1,16 @@
+# Agentic search dependencies.
+#
+# Required for the LLM-calling and fetch layers:
+anthropic>=0.40
+httpx>=0.27
+feedparser>=6.0
+PyYAML>=6.0
+
+# Optional — Tier 3 (headless browser) fetch/search. Without it, chromium
+# sources fall back to "manual collection needed" and browser_search returns [].
+#   pip install playwright && playwright install chromium
+# playwright>=1.40
+
+# Web search providers:
+#   - Default provider "ddg" needs no API key.
+#   - brave / serper / tavily read the SEARCH_API_KEY environment variable.

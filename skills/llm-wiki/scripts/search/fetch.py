@@ -146,7 +146,7 @@ def fetch_requests(
     # Fallback: raw httpx GET (no text extraction).
     import httpx
 
-    headers = {"User-Agent": "IRRBB-Wiki-Research/1.0", "Accept": "text/html,application/xhtml+xml"}
+    headers = {"User-Agent": "LLM-Wiki-Research/1.0", "Accept": "text/html,application/xhtml+xml"}
     last_exc: Exception | None = None
     for attempt in range(retries + 1):
         try:

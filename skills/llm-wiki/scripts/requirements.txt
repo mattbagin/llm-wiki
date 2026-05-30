@@ -1,0 +1,25 @@
+# LLM Knowledge Wiki — dependencies.
+#
+# Core (ingest pipeline + agentic search):
+anthropic>=0.40
+httpx>=0.27
+PyYAML>=6.0
+feedparser>=6.0
+
+# UI (tools/wiki_ui.py):
+flask>=3.0
+markdown>=3.5          # optional — nicer rendering; UI falls back to <pre> without it
+
+# Document conversion (tools/convert.py) — markitdown covers everything; the
+# focused libs are fallbacks when markitdown isn't available.
+markitdown>=0.0.1
+mammoth>=1.6           # .docx fallback
+pdfplumber>=0.11       # .pdf fallback
+
+# MCP server (tools/mcp_server.py):
+# pip install mcp
+
+# Optional — Tier 3 headless-browser fetch/search:
+# pip install playwright && playwright install chromium
+
+# Web search providers brave/serper/tavily read SEARCH_API_KEY (env).

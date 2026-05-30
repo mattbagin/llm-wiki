@@ -3,7 +3,7 @@
 Usage:
     python tools/search/cli.py poll
     python tools/search/cli.py discover
-    python tools/search/cli.py target --description "..." [--bank rbc] [--max-results 5]
+    python tools/search/cli.py target --description "..." [--entity rbc] [--max-results 5]
     python tools/search/cli.py queue
     python tools/search/cli.py review <item_id>
     python tools/search/cli.py approve <item_id>
@@ -69,7 +69,7 @@ def cmd_target(args: argparse.Namespace) -> int:
         registry=registry,
         wiki_root=Path(args.wiki),
         inbox_root=Path(args.inbox),
-        bank_hint=args.bank,
+        entity_hint=args.entity,
         max_results=args.max_results,
         dry_run=args.dry_run,
     )
@@ -166,7 +166,7 @@ def cmd_ingest_approved(args: argparse.Namespace) -> int:
         eval_data = yaml.safe_load(item.evaluation_path.read_text(encoding="utf-8")) or {}
         meta = eval_data.get("item", {})
         evaluation = eval_data.get("evaluation", {})
-        bank_tags = evaluation.get("bank_tags") or []
+        entity_tags = evaluation.get("entity_tags") or []
         action = evaluation.get("recommended_action", "ingest")
 
         if not item.content_path.exists():
@@ -177,7 +177,7 @@ def cmd_ingest_approved(args: argparse.Namespace) -> int:
         research.run_file_ingest_pipeline(
             file_path=item.content_path,
             wiki_root=wiki_root,
-            bank_hint=bank_tags[0] if bank_tags else None,
+            entity_hint=entity_tags[0] if entity_tags else None,
             url_ref=meta.get("url", ""),
             with_updates=True,
             with_commentary=(action == "ingest-with-commentary"),
@@ -193,7 +193,7 @@ def cmd_ingest_approved(args: argparse.Namespace) -> int:
 
 
 def build_parser() -> argparse.ArgumentParser:
-    p = argparse.ArgumentParser(prog="search-cli", description="IRRBB wiki agentic search")
+    p = argparse.ArgumentParser(prog="search-cli", description="knowledge wiki agentic search")
     p.add_argument("--registry", default=str(DEFAULT_REGISTRY_PATH))
     p.add_argument("--inbox", default=str(DEFAULT_INBOX_PATH))
     p.add_argument("--wiki", default=str(DEFAULT_WIKI_PATH))
@@ -209,7 +209,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     s = sub.add_parser("target", help="Run targeted search")
     s.add_argument("--description", required=True)
-    s.add_argument("--bank")
+    s.add_argument("--entity")
     s.add_argument("--max-results", type=int, default=5)
     s.add_argument("--dry-run", action="store_true")
     s.set_defaults(func=cmd_target)
